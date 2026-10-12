@@ -917,6 +917,18 @@ public:
             else
                 info.flags = param.isAutomatable() ? Vst::ParameterInfo::kCanAutomate : 0;
 
+            // PsCodePro: the exporter marks "hidden from host" parameters as
+            // non-automatable META parameters (script-driven controls, license
+            // storage, node internals). VST3 has a flag for exactly that; stock
+            // JUCE never sets it, so hosts list them anyway -- and Ableton Live's
+            // 128-parameter rule then hides the REAL parameters behind Configure.
+            // Opt-in per product (PsCMakeGenerator sets it on the VST3 target when
+            // the project's "hide internal parameters" export flag is on).
+           #if defined (PS_VST3_HIDE_META_PARAMS) && PS_VST3_HIDE_META_PARAMS
+            if (! param.isAutomatable() && param.isMetaParameter())
+                info.flags |= Vst::ParameterInfo::kIsHidden;
+           #endif
+
             if (isBypassParameter)
                 info.flags |= Vst::ParameterInfo::kIsBypass;
 
@@ -2140,6 +2152,21 @@ private:
                         if (! approximatelyEqual (aspectRatio, 0.0f))
                         {
                             bool adjustWidth = (width / height > aspectRatio);
+
+                            // PsCodePro: let the DRAGGED edge lead. Stock JUCE always fits
+                            // to the smaller side, so a single-edge drag (Ableton Live lets
+                            // you drag any edge) can only ever shrink the window: widen it
+                            // and the height pulls the width back. Whichever side moved more
+                            // relative to the current size wins; the other follows the
+                            // aspect ratio. Same idea as the Cubase 9 case below, for all hosts.
+                            {
+                                const auto current = editor->getBounds().toFloat();
+                                const auto dw = std::abs (width  - current.getWidth())  / jmax (1.0f, current.getWidth());
+                                const auto dh = std::abs (height - current.getHeight()) / jmax (1.0f, current.getHeight());
+
+                                if (! approximatelyEqual (dw, dh))
+                                    adjustWidth = (dh > dw);
+                            }
 
                             if (detail::PluginUtilities::getHostType().type == PluginHostType::SteinbergCubase9)
                             {
