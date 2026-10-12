@@ -2159,13 +2159,31 @@ private:
                             // and the height pulls the width back. Whichever side moved more
                             // relative to the current size wins; the other follows the
                             // aspect ratio. Same idea as the Cubase 9 case below, for all hosts.
+                            //
+                            // Only for a SINGLE-edge drag. A corner drag moves both sides, and
+                            // re-picking the leader per call against the current size flips it
+                            // back and forth (window jumps between pointer x and pointer y), so
+                            // once both sides moved in a gesture it is latched as a corner drag
+                            // and keeps stock smaller-side fitting, which depends on the pointer
+                            // alone. A gesture ends when the host stops asking for 250 ms.
                             {
                                 const auto current = editor->getBounds().toFloat();
-                                const auto dw = std::abs (width  - current.getWidth())  / jmax (1.0f, current.getWidth());
-                                const auto dh = std::abs (height - current.getHeight()) / jmax (1.0f, current.getHeight());
+                                const auto now = Time::getMillisecondCounter();
 
-                                if (! approximatelyEqual (dw, dh))
-                                    adjustWidth = (dh > dw);
+                                if (now - psLastSizeCheckMs > 250)
+                                    psCornerDrag = false;
+
+                                psLastSizeCheckMs = now;
+
+                                constexpr auto tolerance = 1.5f;
+                                const auto movedW = std::abs (width  - current.getWidth())  > tolerance;
+                                const auto movedH = std::abs (height - current.getHeight()) > tolerance;
+
+                                if (movedW && movedH)
+                                    psCornerDrag = true;
+
+                                if (! psCornerDrag && movedW != movedH)
+                                    adjustWidth = movedH;
                             }
 
                             if (detail::PluginUtilities::getHostType().type == PluginHostType::SteinbergCubase9)
@@ -2505,6 +2523,10 @@ private:
         };
 
         std::unique_ptr<Cubase10WindowResizeWorkaround> cubase10Workaround;
+
+        // PsCodePro: dragged-edge-leads gesture state (checkSizeConstraint)
+        uint32 psLastSizeCheckMs = 0;
+        bool psCornerDrag = false;
        #elif JUCE_WINDOWS
         detail::WindowsHooks hooks;
        #endif
