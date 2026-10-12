@@ -2503,6 +2503,11 @@ private:
 
         friend ContentWrapperComponent;
 
+        // PsCodePro: dragged-edge-leads gesture state (checkSizeConstraint).
+        // All platforms -- NOT inside the JUCE_MAC block below.
+        uint32 psLastSizeCheckMs = 0;
+        bool psCornerDrag = false;
+
        #if JUCE_MAC
         void* macHostWindow = nullptr;
 
@@ -2523,10 +2528,6 @@ private:
         };
 
         std::unique_ptr<Cubase10WindowResizeWorkaround> cubase10Workaround;
-
-        // PsCodePro: dragged-edge-leads gesture state (checkSizeConstraint)
-        uint32 psLastSizeCheckMs = 0;
-        bool psCornerDrag = false;
        #elif JUCE_WINDOWS
         detail::WindowsHooks hooks;
        #endif
