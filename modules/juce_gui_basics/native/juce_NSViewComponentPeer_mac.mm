@@ -2083,7 +2083,32 @@ private:
 
             const auto currentStyleMask = [window styleMask];
 
-            if (ModalComponentManager::getInstance()->getNumModalComponents() > 0)
+            // PsCodePro patch: only a modal DIALOG takes minimise/close away from the other
+            // windows. A popup (menu, call-out: always on top, or in a windowIsTemporary
+            // peer) does not - the style change on every click made Stage Manager re-arrange
+            // the stage and move the app's window each time a popup opened or closed.
+            const auto isDialogModal = []
+            {
+                auto* manager = ModalComponentManager::getInstance();
+
+                for (int i = 0; i < manager->getNumModalComponents(); ++i)
+                {
+                    auto* modal = manager->getModalComponent (i);
+                    auto* peer = modal != nullptr ? modal->getPeer() : nullptr;
+
+                    // inside a window, an always-on-top modal is a popup too
+                    // (JUCE's menus and PsPopup boxes are always on top)
+                    if (modal != nullptr && modal->isAlwaysOnTop())
+                        continue;
+
+                    if (peer == nullptr || (peer->getStyleFlags() & ComponentPeer::windowIsTemporary) == 0)
+                        return true;
+                }
+
+                return false;
+            };
+
+            if (isDialogModal())
             {
                 if (! storedFlags)
                     storedFlags.emplace (currentStyleMask);
@@ -2111,7 +2136,10 @@ private:
 
         const auto newLevel = std::invoke ([&]() -> std::optional<NSWindowLevel>
         {
-            if (isSharedWindow)
+            // PsCodePro patch: a popup window (windowIsTemporary) keeps its own level. Stock
+            // JUCE moved a modal menu / call-out to NSModalPanelWindowLevel - a dialog level,
+            // which Stage Manager answered by re-arranging the stage on every popup.
+            if (isSharedWindow || (getStyleFlags() & ComponentPeer::windowIsTemporary) != 0)
                 return {};
 
             auto* manager = ModalComponentManager::getInstance();
@@ -2120,7 +2148,11 @@ private:
             {
                 auto* recent = manager->getModalComponent (0);
 
-                if (recent == &component || component.isParentOf (recent))
+                // PsCodePro patch: an always-on-top modal inside this window is a popup
+                // (JUCE's menus and PsPopup boxes are always on top), not a dialog. Raising
+                // the whole window to the modal-panel level for it made Stage Manager
+                // re-arrange the stage on every popup.
+                if ((recent == &component || component.isParentOf (recent)) && ! recent->isAlwaysOnTop())
                 {
                     if (! storedLevel.has_value())
                         storedLevel = [window level];
