@@ -35,6 +35,11 @@
 namespace juce
 {
 
+#if defined (PSCODEPRO_IDE)
+extern std::atomic<double> psDemoClockMs;
+static std::function<void (int)> psDemoAdvanceHook;   // TimerThread is private to Timer
+#endif
+
 class Timer::TimerThread final : private Thread,
                                  private Thread::Listener,
                                  private MessageManager::LifetimeListener
@@ -48,10 +53,16 @@ public:
         timers.reserve (32);
         addListener (this);
         MessageManager::addLifetimeListener (*this);
+       #if defined (PSCODEPRO_IDE)
+        psDemoAdvanceHook = [this] (int ms) { psDemoAdvance (ms); };
+       #endif
     }
 
     ~TimerThread() override
     {
+       #if defined (PSCODEPRO_IDE)
+        psDemoAdvanceHook = nullptr;
+       #endif
         MessageManager::removeLifetimeListener (*this);
         stopThread();
         removeListener (this);
@@ -83,6 +94,21 @@ public:
         callTimers();
     }
 
+   #if defined (PSCODEPRO_IDE)
+    // --demo: run the timers due across `ms` of virtual time, in their proper order.
+    void psDemoAdvance (int ms)
+    {
+        while (ms > 0)
+        {
+            const auto untilFirst = getTimeUntilFirstTimer (0);
+            const auto step = jlimit (1, ms, untilFirst);
+            getTimeUntilFirstTimer (step);
+            callTimers();
+            ms -= step;
+        }
+    }
+   #endif
+
 private:
     void run() override
     {
@@ -91,6 +117,15 @@ private:
 
         while (! threadShouldExit())
         {
+           #if defined (PSCODEPRO_IDE)
+            if (psDemoClockMs.load (std::memory_order_relaxed) >= 0.0)
+            {
+                wait (20);   // --demo steps the timers itself (psDemoAdvanceTimers)
+                lastTime = Time::getMillisecondCounter();
+                continue;
+            }
+           #endif
+
             auto now = Time::getMillisecondCounter();
             auto elapsed = (int) (now >= lastTime ? (now - lastTime)
                                                   : (std::numeric_limits<uint32>::max() - (lastTime - now)));
@@ -381,6 +416,14 @@ void JUCE_CALLTYPE Timer::callPendingTimersSynchronously()
     if (auto instance = SharedResourcePointer<TimerThread>::getSharedObjectWithoutCreating())
         (*instance)->callTimersSynchronously();
 }
+
+#if defined (PSCODEPRO_IDE)
+void psDemoAdvanceTimers (int ms)
+{
+    if (psDemoAdvanceHook != nullptr)
+        psDemoAdvanceHook (ms);
+}
+#endif
 
 struct LambdaInvoker final : private Timer,
                              private DeletedAtShutdown

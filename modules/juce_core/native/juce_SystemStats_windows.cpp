@@ -409,6 +409,10 @@ String SystemStats::getEnvironmentVariable (const String& name, const String& de
 //==============================================================================
 uint32 juce_millisecondsSinceStartup() noexcept
 {
+   #if defined (PSCODEPRO_IDE)
+    if (const auto demoMs = psDemoClockMs.load (std::memory_order_relaxed); demoMs >= 0.0)
+        return (uint32) demoMs;
+   #endif
     return (uint32) timeGetTime();
 }
 
@@ -443,6 +447,10 @@ public:
 
     inline int64 getHighResolutionTicks() noexcept
     {
+       #if defined (PSCODEPRO_IDE)
+        if (const auto demoMs = psDemoClockMs.load (std::memory_order_relaxed); demoMs >= 0.0)
+            return (int64) (demoMs * 0.001 * (double) hiResTicksPerSecond);
+       #endif
         LARGE_INTEGER ticks;
         QueryPerformanceCounter (&ticks);
         return ticks.QuadPart;
