@@ -620,8 +620,34 @@ void ComponentPeer::forceDisplayUpdate()
     Desktop::getInstance().displays->refresh();
 }
 
+#if defined (PSCODEPRO_IDE)
+extern std::atomic<double> psDemoClockMs;
+static bool psDemoVBlankStep = false;
+
+// --demo: the display's own vblank is ignored while the virtual clock runs; this is
+// the only thing that fires one.
+void psDemoFireVBlanks (double timestampSec)
+{
+    struct Access final : public ComponentPeer
+    {
+        static void fire (ComponentPeer& p, double t) { (p.*(&Access::callVBlankListeners)) (t); }
+    };
+
+    const ScopedValueSetter<bool> step (psDemoVBlankStep, true);
+
+    for (int i = ComponentPeer::getNumPeers(); --i >= 0;)
+        if (auto* peer = ComponentPeer::getPeer (i))
+            Access::fire (*peer, timestampSec);
+}
+#endif
+
 void ComponentPeer::callVBlankListeners (double timestampSec)
 {
+   #if defined (PSCODEPRO_IDE)
+    if (psDemoClockMs.load (std::memory_order_relaxed) >= 0.0 && ! psDemoVBlankStep)
+        return;
+   #endif
+
     vBlankListeners.call ([timestampSec] (auto& l) { l.onVBlank (timestampSec); });
 }
 

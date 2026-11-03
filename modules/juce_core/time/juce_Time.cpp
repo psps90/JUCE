@@ -35,6 +35,12 @@
 namespace juce
 {
 
+#if defined (PSCODEPRO_IDE)
+// PsCodePro --demo: every JUCE clock reads this while it is >= 0, so a render steps
+// time by exactly the frames it has made. Stays -1 otherwise. See dev/juce-patches.
+std::atomic<double> psDemoClockMs { -1.0 };
+#endif
+
 namespace TimeHelpers
 {
     static std::tm millisToLocal (int64 millis) noexcept
@@ -232,6 +238,10 @@ int64 Time::currentTimeMillis() noexcept
 
 Time JUCE_CALLTYPE Time::getCurrentTime() noexcept
 {
+   #if defined (PSCODEPRO_IDE)
+    if (const auto demoMs = psDemoClockMs.load (std::memory_order_relaxed); demoMs >= 0.0)
+        return Time ((int64) 1767225600000 + (int64) demoMs);   // a fixed date: frames must not depend on today
+   #endif
     return Time (currentTimeMillis());
 }
 
