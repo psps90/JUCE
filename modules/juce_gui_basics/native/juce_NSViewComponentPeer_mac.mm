@@ -38,6 +38,12 @@
 @end
 
 //==============================================================================
+// PsCodePro: draw each dirty rect on its own through a Metal layer. Without this macOS merges every
+// repaint into one bounding box, so a scope at one end and a meter at the other redraw all in between.
+#ifndef JUCE_COREGRAPHICS_RENDER_WITH_MULTIPLE_PAINT_CALLS
+ #define JUCE_COREGRAPHICS_RENDER_WITH_MULTIPLE_PAINT_CALLS 1
+#endif
+
 namespace juce
 {
 
