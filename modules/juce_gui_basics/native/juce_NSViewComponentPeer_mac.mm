@@ -182,6 +182,10 @@ private:
     }
 };
 
+#if defined (PSCODEPRO_IDE)
+extern std::atomic<double> psDemoClockMs;   // juce_Time.cpp, --demo's virtual clock
+#endif
+
 //==============================================================================
 class NSViewComponentPeer final : public ComponentPeer,
                                   private JuceCALayerDelegateCallback
@@ -537,7 +541,15 @@ public:
             && isPositiveAndBelow (localPos.getY(), viewFrame.size.height)))
             return false;
 
-        if (! SystemStats::isRunningInAppExtensionSandbox())
+       #if defined (PSCODEPRO_IDE)
+        // --demo: the render's window sits off every screen, where the window server reports no
+        // window at all, so every pointer event the render sends through this peer would miss.
+        const auto askWindowServer = psDemoClockMs.load (std::memory_order_relaxed) < 0.0;
+       #else
+        const auto askWindowServer = true;
+       #endif
+
+        if (askWindowServer && ! SystemStats::isRunningInAppExtensionSandbox())
         {
             if (NSWindow* const viewWindow = [view window])
             {
