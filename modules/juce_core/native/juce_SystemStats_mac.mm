@@ -346,10 +346,34 @@ private:
 
 static HiResCounterInfo hiResCounterInfo;
 
-uint32 juce_millisecondsSinceStartup() noexcept         { return hiResCounterInfo.millisecondsSinceStartup(); }
-double Time::getMillisecondCounterHiRes() noexcept      { return hiResCounterInfo.getMillisecondCounterHiRes(); }
+uint32 juce_millisecondsSinceStartup() noexcept
+{
+   #if defined (PSCODEPRO_IDE)
+    if (const auto demoMs = psDemoClockMs.load (std::memory_order_relaxed); demoMs >= 0.0)
+        return (uint32) demoMs;
+   #endif
+    return hiResCounterInfo.millisecondsSinceStartup();
+}
+
+double Time::getMillisecondCounterHiRes() noexcept
+{
+   #if defined (PSCODEPRO_IDE)
+    if (const auto demoMs = psDemoClockMs.load (std::memory_order_relaxed); demoMs >= 0.0)
+        return demoMs;
+   #endif
+    return hiResCounterInfo.getMillisecondCounterHiRes();
+}
+
 int64  Time::getHighResolutionTicksPerSecond() noexcept { return hiResCounterInfo.highResTimerFrequency; }
-int64  Time::getHighResolutionTicks() noexcept          { return (int64) mach_absolute_time(); }
+
+int64  Time::getHighResolutionTicks() noexcept
+{
+   #if defined (PSCODEPRO_IDE)
+    if (const auto demoMs = psDemoClockMs.load (std::memory_order_relaxed); demoMs >= 0.0)
+        return (int64) (demoMs * 0.001 * (double) hiResCounterInfo.highResTimerFrequency);
+   #endif
+    return (int64) mach_absolute_time();
+}
 
 bool Time::setSystemTimeToThisTime() const
 {
