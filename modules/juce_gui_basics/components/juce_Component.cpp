@@ -1939,11 +1939,25 @@ void Component::internalRepaint (Rectangle<int> area)
         internalRepaintUnchecked (area, false);
 }
 
+#if defined (PSCODEPRO_IDE)
+/*  --bench-uiperf's repaint ledger: who ASKED for a repaint, and of how much. Called for the
+    component the request was made on (not for the parents it travels up through), on the message
+    thread. Null outside the bench. */
+void (*psRepaintProbe) (Component*, Rectangle<int>) = nullptr;
+static thread_local int psRepaintDepth = 0;
+#endif
+
 void Component::internalRepaintUnchecked (Rectangle<int> area, bool isEntireComponent)
 {
     // if component methods are being called from threads other than the message
     // thread, you'll need to use a MessageManagerLock object to make sure it's thread-safe.
     JUCE_ASSERT_MESSAGE_MANAGER_IS_LOCKED
+
+   #if defined (PSCODEPRO_IDE)
+    struct PsDepth { PsDepth() { ++psRepaintDepth; } ~PsDepth() { --psRepaintDepth; } } psDepth;
+    if (psRepaintProbe != nullptr && psRepaintDepth == 1 && flags.visibleFlag && ! area.isEmpty())
+        psRepaintProbe (this, area);
+   #endif
 
     if (flags.visibleFlag)
     {
