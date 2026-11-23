@@ -112,6 +112,12 @@ void ComponentPeer::handleMagnifyGesture (MouseInputSource::InputSourceType type
 }
 
 //==============================================================================
+#if defined (PSCODEPRO_IDE)
+/*  --bench-uiperf's frame probe: called on the message thread directly before a window paints
+    (begin = true) and directly after (false). Null outside the bench. */
+void (*psPeerPaintProbe) (Component*, bool begin) = nullptr;
+#endif
+
 void ComponentPeer::handlePaint (LowLevelGraphicsContext& contextToPaintTo)
 {
     Graphics g (contextToPaintTo);
@@ -139,11 +145,19 @@ void ComponentPeer::handlePaint (LowLevelGraphicsContext& contextToPaintTo)
     }
   #endif
 
+   #if defined (PSCODEPRO_IDE)
+    if (auto* probe = psPeerPaintProbe) probe (&component, true);
+   #endif
+
     JUCE_TRY
     {
         component.paintEntireComponent (g, true);
     }
     JUCE_CATCH_EXCEPTION
+
+   #if defined (PSCODEPRO_IDE)
+    if (auto* probe = psPeerPaintProbe) probe (&component, false);
+   #endif
 
   #if JUCE_ENABLE_REPAINT_DEBUGGING
    #ifdef JUCE_IS_REPAINT_DEBUGGING_ACTIVE

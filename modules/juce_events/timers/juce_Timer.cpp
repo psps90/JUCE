@@ -38,6 +38,10 @@ namespace juce
 #if defined (PSCODEPRO_IDE)
 extern std::atomic<double> psDemoClockMs;
 static std::function<void (int)> psDemoAdvanceHook;   // TimerThread is private to Timer
+
+/*  --bench-uiperf's timer ledger: called on the message thread directly before a timer's
+    callback (with the timer) and directly after it (with nullptr). Null outside the bench. */
+void (*psTimerProbe) (Timer*) = nullptr;
 #endif
 
 class Timer::TimerThread final : private Thread,
@@ -179,11 +183,20 @@ private:
 
             const LockType::ScopedUnlockType ul (lock);
 
+           #if defined (PSCODEPRO_IDE)
+            const auto probe = psTimerProbe;
+            if (probe != nullptr) probe (timer);
+           #endif
+
             JUCE_TRY
             {
                 timer->timerCallback();
             }
             JUCE_CATCH_EXCEPTION
+
+           #if defined (PSCODEPRO_IDE)
+            if (probe != nullptr) probe (nullptr);
+           #endif
 
             // avoid getting stuck in a loop if a timer callback repeatedly takes too long
             if (Time::getMillisecondCounter() > timeout)
